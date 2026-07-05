@@ -1,4 +1,5 @@
 using NUnitLite;
+using System.Text;
 
 namespace Reflection.Differentiation;
 
@@ -6,6 +7,7 @@ class Program
 {
 	static void Main(string[] args)
 	{
-		new AutoRun().Execute(args);
+		Console.OutputEncoding = Encoding.UTF8;
+        new AutoRun().Execute(args);
 	}
 }
