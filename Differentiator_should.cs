@@ -5,15 +5,15 @@ using Assert = NUnit.Framework.Legacy.ClassicAssert;
 namespace Reflection.Differentiation;
 
 [TestFixture]
-public class Algebra_should
+public class Differentiator_should
 {
 	void AssertDerivativeEqualToNumericDerivative(Expression<Func<double, double>> function)
 	{
 		var f = function.Compile();
 		var eps = 1e-5;
-		var dfExpression = Algebra.Differentiate(function);
+		var dfExpression = Differentiator.Differentiate(function);
 		var df = dfExpression.Compile();
-		for (double x = 0; x < 5; x += 0.1)
+		for (double x = 0; x < 10; x += 0.1)
 		{
 			var centralDifference4th = (-f(x + 2 * eps) + 8 * f(x + eps) - 8 * f(x - eps) + f(x - 2 * eps)) / (12 * eps);
             Assert.AreEqual(centralDifference4th, df(x), 1e-5, $"Error on function {function.Body}");
@@ -65,6 +65,9 @@ public class Algebra_should
     [Test] public void DifferentiatePower() 
 		=> AssertDerivativeEqualToNumericDerivative(z => Math.Pow(z, 4));
 
+    [Test] public void DifferentiatePowerWithParameterBaseAndExp()
+        => AssertDerivativeEqualToNumericDerivative(z => Math.Pow(z * 0.1 + 1, 0.6 * z + 1));
+
     [Test] public void DifferentiatePowerWithConstantBase() 
 		=> AssertDerivativeEqualToNumericDerivative(z => Math.Pow(2, z));
 
@@ -72,7 +75,7 @@ public class Algebra_should
 		=> AssertDerivativeEqualToNumericDerivative(z => Math.Sqrt(9 * z * z + 1));
 
     [Test] public void DifferentiateExp() 
-		=> AssertDerivativeEqualToNumericDerivative(z => Math.Exp(2 * z + 1));
+		=> AssertDerivativeEqualToNumericDerivative(z => Math.Exp(0.2 * z + 1));
 
     [Test] public void DifferentiateNaturalLog()
 		=> AssertDerivativeEqualToNumericDerivative(z => Math.Log(z * z + 1));
@@ -95,6 +98,15 @@ public class Algebra_should
     [Test] public void DifferentiateAbsNegative()
         => AssertDerivativeEqualToNumericDerivative(z => -3 * z);
 
+    [Test] public void DifferentiateAsin()
+        => AssertDerivativeEqualToNumericDerivative(z => z * Math.Asin(32 * z * z));
+
+    [Test] public void DifferentiateAcos()
+        => AssertDerivativeEqualToNumericDerivative(z => z * Math.Acos(19 * z * z));
+
+    [Test] public void DifferentiateAtan()
+        => AssertDerivativeEqualToNumericDerivative(z => z * Math.Atan(23 * z * z));
+
     [Test] public void DifferentiateComplexTrigAndExp()
         => AssertDerivativeEqualToNumericDerivative(z =>
             Math.Cos(2 * z) * Math.Sin(z) +
@@ -108,5 +120,4 @@ public class Algebra_should
     [Test] public void DifferentiateOriginalComplexExpression()
         => AssertDerivativeEqualToNumericDerivative(z =>
             Math.Cos(2 * z + z) + 2 * Math.Sin(3 * z + z) + Math.Sin(z + 1) * Math.Cos(z + 2) * 3);
-
 }

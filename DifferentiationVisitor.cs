@@ -3,18 +3,6 @@ using System.Reflection;
 
 namespace Reflection.Differentiation;
 
-public static class Algebra
-{
-    public static Expression<Func<double, double>> Differentiate(Expression<Func<double, double>> function)
-    {
-        var visitor = new DifferentiationVisitor();
-
-        var body = visitor.Visit(function.Body);
-
-        return Expression.Lambda<Func<double, double>>(body, function.Parameters);
-    }
-}
-
 public class DifferentiationVisitor : ExpressionVisitor
 {
     private static readonly MethodInfo _sinMethod = typeof(Math).GetMethod("Sin", new[] { typeof(double) })!;
@@ -28,28 +16,28 @@ public class DifferentiationVisitor : ExpressionVisitor
 
     protected override Expression VisitBinary(BinaryExpression expr)
     {
-        var left = Visit(expr.Left);
-        var right = Visit(expr.Right);
+        var dLeft = Visit(expr.Left);
+        var dRight = Visit(expr.Right);
 
         switch (expr.NodeType)
         {
             case ExpressionType.Add:
-                return Expression.Add(left, right);
+                return Expression.Add(dLeft, dRight);
 
             case ExpressionType.Subtract:
-                return Expression.Subtract(left, right);
+                return Expression.Subtract(dLeft, dRight);
 
             case ExpressionType.Multiply:
                 return Expression.Add(
-                    Expression.Multiply(left, expr.Right), 
-                    Expression.Multiply(right, expr.Left)
+                    Expression.Multiply(dLeft, expr.Right), 
+                    Expression.Multiply(dRight, expr.Left)
                     );
 
             case ExpressionType.Divide:
                 return Expression.Divide(
                     Expression.Subtract(
-                        Expression.Multiply(left, expr.Right),
-                        Expression.Multiply(right, expr.Left)
+                        Expression.Multiply(dLeft, expr.Right),
+                        Expression.Multiply(dRight, expr.Left)
                         ),
                     Expression.Multiply(expr.Right, expr.Right)
                     );
@@ -61,6 +49,11 @@ public class DifferentiationVisitor : ExpressionVisitor
 
     protected override Expression VisitMethodCall(MethodCallExpression expr)
     {
+        var dFirstArg = Visit(expr.Arguments[0]);
+        var dSecondArg = expr.Arguments.Count >= 2
+            ? Visit(expr.Arguments[1])
+            : null;
+
         switch (expr.Method.Name)
         {
             case "Sin":
@@ -93,25 +86,49 @@ public class DifferentiationVisitor : ExpressionVisitor
             case "Pow":
                 return expr.Arguments[0].NodeType == ExpressionType.Constant
                     ? Expression.Multiply(
-                        Visit(expr.Arguments[1]),
+                        dSecondArg!,
                         Expression.Multiply(
-                            Expression.Power(
+                            Expression.Call(
+                                _powMethod,
                                 expr.Arguments[0], 
                                 expr.Arguments[1]
                                 ),
                             Expression.Call(_logNatural, expr.Arguments[0])
                             )
                         )
-                    : Expression.Multiply(
-                        expr.Arguments[1],
-                        Expression.Power(
-                            expr.Arguments[0], 
-                            Expression.Subtract(
+                    : expr.Arguments[1].NodeType == ExpressionType.Constant 
+                        ? Expression.Multiply(
+                            dFirstArg,
+                            Expression.Multiply(
                                 expr.Arguments[1],
-                                Expression.Constant(1.0)
+                                Expression.Call(
+                                    _powMethod,
+                                    expr.Arguments[0], 
+                                    Expression.Subtract(
+                                        expr.Arguments[1],
+                                        Expression.Constant(1.0)
+                                        )
+                                    )
                                 )
                             )
-                        );
+                        : Expression.Multiply(
+                            Expression.Call(
+                                _powMethod,
+                                expr.Arguments[0],
+                                expr.Arguments[1]),
+                            Expression.Add(
+                                Expression.Multiply(
+                                    dSecondArg!,
+                                    Expression.Call(_logNatural, expr.Arguments[0])
+                                    ),
+                                Expression.Divide(
+                                    Expression.Multiply(
+                                        expr.Arguments[1], 
+                                        dFirstArg),
+                                    expr.Arguments[0]
+                                    )
+                                )
+                            );
 
             case "Sqrt":
                 return Expression.Divide(
@@ -155,6 +172,62 @@ public class DifferentiationVisitor : ExpressionVisitor
                         ),
                     Visit(expr.Arguments[0])
                 );
+
+            case "Asin":
+                return Expression.Multiply(
+                    Visit(expr.Arguments[0]),
+                    Expression.Divide(
+                        Expression.Constant(1.0),
+                        Expression.Call(
+                            _powMethod,
+                            Expression.Subtract(
+                                Expression.Constant(1.0),
+                                Expression.Call(
+                                    _powMethod,
+                                    expr.Arguments[0],
+                                    Expression.Constant(2.0)
+                                    )
+                                ),
+                            Expression.Constant(1.0 / 2)
+                            )
+                        )
+                    );
+
+            case "Acos":
+                return Expression.Multiply(
+                    Visit(expr.Arguments[0]),
+                    Expression.Divide(
+                        Expression.Constant(-1.0),
+                        Expression.Call(
+                            _powMethod,
+                            Expression.Subtract(
+                                Expression.Constant(1.0),
+                                Expression.Call(
+                                    _powMethod,
+                                    expr.Arguments[0],
+                                    Expression.Constant(2.0)
+                                    )
+                                ),
+                            Expression.Constant(1.0 / 2)
+                            )
+                        )
+                    );
+
+            case "Atan":
+                return Expression.Multiply(
+                    Visit(expr.Arguments[0]),
+                    Expression.Divide(
+                        Expression.Constant(1.0),
+                        Expression.Add(
+                            Expression.Constant(1.0),
+                            Expression.Call(
+                                _powMethod,
+                                expr.Arguments[0],
+                                Expression.Constant(2.0)
+                                )
+                            )
+                        )
+                    );
 
             default:
                 throw new ArgumentException($"Function '{expr.Method.Name}' is not supported.");
